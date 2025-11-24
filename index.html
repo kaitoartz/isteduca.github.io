@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Novel Educativa</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* --- ESTILOS GENERALES --- */
+        body {
+            margin: 0; padding: 0;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; background-color: #111;
+            font-family: 'Lato', sans-serif; overflow: hidden;
+        }
+
+        #scene-container {
+            position: relative;
+            width: 100%; max-width: 1280px; aspect-ratio: 16 / 9;
+            background-color: #000; 
+            overflow: hidden; 
+            /* Sombra sutil, nada de neón */
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        /* --- VIDEO DE FONDO --- */
+        #background-video {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; object-fit: cover;
+            z-index: 0; opacity: 0.6; /* Un poco más oscuro para resaltar la UI plana */
+        }
+
+        /* --- CAPA DE INTRODUCCIÓN --- */
+        #intro-layer {
+            position: absolute; inset: 0;
+            background-color: #ffffff; 
+            z-index: 2000;
+            display: flex; justify-content: center; align-items: center;
+            transition: opacity 1.0s ease;
+        }
+
+        .fade-out { opacity: 0; pointer-events: none; }
+
+        #intro-video {
+            width: 100%; height: 100%; object-fit: cover; display: none;
+        }
+
+        #start-screen {
+            text-align: center; color: #000000; font-weight: 600px;
+        }
+        
+        #start-button {
+            background-color: #cb348c; /* Naranja plano */
+            color: white; border: none;
+            padding: 12px 30px; font-size: 1.1em; cursor: pointer;
+            border-radius: 4px; margin-top: 20px;
+            font-weight: bold; text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: background 0.2s;
+        }
+        #start-button:hover { background-color: #b12d7a; }
+
+        /* --- UI DE LA VISUAL NOVEL --- */
+        #ui-layer {
+            position: absolute; bottom: 40px; left: 50%;
+            transform: translateX(-50%); width: 85%; max-width: 1000px;
+            z-index: 10; display: flex; flex-direction: column;
+            opacity: 0; transition: opacity 1s ease;
+        }
+        
+        .ui-visible { opacity: 1 !important; }
+
+        /* --- UI: CABECERA Y RETRATO --- */
+        .ui-header-area {
+            display: flex; align-items: flex-end; height: 180px;
+            position: relative; margin-bottom: 0; /* Pegado exacto */
+            padding-left: 0;
+        }
+
+        #portrait-box {
+            width: 130px; height: 150px;
+            background-color: #2a2a2a; /* Gris oscuro neutro para el fondo de la imagen */
+            border: 2px solid #4f0b7b; /* Borde sólido Morado */
+            border-bottom: none;
+            border-radius: 4px 4px 0 0; 
+            overflow: hidden;
+            margin-right: 10px;
+            position: relative; top: 2px; /* Pequeño ajuste para solapar borde */
+            z-index: 5;
+        }
+
+        #character-img {
+            width: 100%; height: 100%; object-fit: cover; object-position: top center;
+            opacity: 0; transform: translateY(20px);
+        }
+
+        .animate-enter { animation: characterEnter 0.4s ease-out forwards; }
+        @keyframes characterEnter { to { opacity: 1; transform: translateY(0); } }
+
+        .header-controls-wrapper {
+            display: flex; justify-content: space-between; align-items: flex-end;
+            flex-grow: 1;
+        }
+
+        #character-name-box {
+            /* COLOR PRINCIPAL PLANO */
+            background-color: #4f0b7b; 
+            padding: 10px 25px; 
+            color: #fff; 
+            font-weight: bold; font-size: 1.1em;
+            letter-spacing: 0.5px;
+            border-radius: 4px 4px 0 0;
+            /* Sin bordes extraños, solo color sólido */
+        }
+
+        /* --- CONTROLES DE AUDIO --- */
+        #audio-controls-box {
+            background-color: rgba(20, 20, 20, 0.9);
+            border: 1px solid #4f0b7b; border-bottom: none;
+            padding: 8px 15px; border-radius: 4px 4px 0 0;
+            display: flex; gap: 15px; align-items: center;
+        }
+        .audio-group i { color: #ccc; font-size: 0.8em; margin-right: 5px; }
+        
+        /* Sliders Minimalistas Naranjas */
+        input[type=range] { -webkit-appearance: none; width: 60px; height: 3px; background: #444; outline: none; }
+        input[type=range]::-webkit-slider-thumb { 
+            -webkit-appearance: none; width: 10px; height: 10px; 
+            border-radius: 50%; background: #ef950a; /* ACENTO NARANJA */
+            cursor: pointer;
+        }
+
+        /* --- CAJA DE TEXTO PRINCIPAL --- */
+        #dialogue-box {
+            background-color: rgba(20, 20, 20, 0.98); /* Fondo casi opaco plano */
+            border-top: 4px solid #4f0b7b; /* Solo una línea de color arriba */
+            /* El resto sin bordes o borde sutil */
+            padding: 30px 40px; min-height: 120px;
+            color: #eee; /* Blanco suave */
+            display: flex; flex-direction: column; position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            z-index: 4;
+            border-radius: 0 4px 4px 4px;
+        }
+
+        #dialogue-text-container { 
+            font-size: 1.25em; line-height: 1.6; min-height: 70px; 
+            font-weight: 300; /* Letra un poco más fina y elegante */
+        }
+        
+        /* Cursores en Naranja */
+        .typing-cursor::after { content: '▋'; color: #ef950a; animation: blink 1s infinite; margin-left: 5px; }
+        .waiting-cursor::after { content: '▼'; color: #ef950a; animation: bounce 1s infinite; margin-left: 10px; display: inline-block;}
+        
+        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes bounce { 50% { transform: translateY(3px); } }
+
+        .dialogue-actions { position: absolute; bottom: 20px; right: 30px; display: flex; gap: 15px; }
+        
+        /* Botones Planos y Limpios */
+        button { 
+            background: transparent; 
+            border: 1px solid #666; 
+            color: #aaa; 
+            padding: 8px 20px; cursor: pointer; font-family: inherit; 
+            text-transform: uppercase; border-radius: 2px; transition: 0.2s;
+            font-size: 0.85em; letter-spacing: 1px;
+        }
+        button:hover { 
+            border-color: #ef950a; color: #ef950a; /* Hover Naranja */
+            background: rgba(239, 149, 10, 0.05); 
+        }
+        
+        #watch-video-button { 
+            border-color: #ef950a; color: #ef950a; display: none; 
+        }
+        #watch-video-button:hover {
+            background-color: #ef950a; color: #000; /* Botón se llena al hover */
+        }
+
+        /* --- MODAL VIDEO --- */
+        #video-modal { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.95); display: none; justify-content: center; align-items: center; z-index: 100; }
+        #video-modal.active { display: flex; }
+        .video-content { 
+            width: 80%; aspect-ratio: 16/9; background: #000; 
+            border: 1px solid #444; /* Borde sutil */
+            position: relative; 
+        }
+        #close-video { 
+            position: absolute; top: -35px; right: 0; 
+            background: none; border: none; color: #fff; 
+            font-size: 1.5em; cursor: pointer; opacity: 0.7;
+        }
+        #close-video:hover { opacity: 1; color: #ef950a; }
+
+    </style>
+</head>
+
+<body>
+
+    <div id="scene-container">
+        
+        <video id="background-video" loop muted playsinline>
+            <source src="fondo.mp4" type="video/mp4">
+        </video>
+
+        <div id="intro-layer">
+            <div id="start-screen">
+                <h2 style="font-weight: 300; letter-spacing: 2px;">MÓDULO EDUCATIVO</h2>
+                <button id="start-button">Comenzar</button>
+            </div>
+            <video id="intro-video" src="intro.mp4" playsinline></video>
+        </div>
+
+        <div id="ui-layer">
+            <div class="ui-header-area">
+                <div id="portrait-box">
+                    <img id="character-img" src="" alt="Personaje">
+                </div>
+                
+                <div class="header-controls-wrapper">
+                    <div id="character-name-box">
+                        <span id="character-name">...</span>
+                    </div>
+                    
+                    <div id="audio-controls-box">
+                        <div class="audio-group">
+                            <i class="fas fa-music"></i>
+                            <input type="range" id="bgm-slider" min="0" max="1" step="0.05" value="0.3">
+                        </div>
+                        <div class="audio-group">
+                            <i class="fas fa-microphone-alt"></i>
+                            <input type="range" id="voice-slider" min="0" max="1" step="0.05" value="1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dialogue-box">
+                <div id="dialogue-text-container"></div>
+                <div class="dialogue-actions">
+                    <button id="watch-video-button"><i class="fas fa-play"></i> Ver Video</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="video-modal">
+            <div class="video-content">
+                <button id="close-video"><i class="fas fa-times"></i></button>
+                <iframe id="video-frame" src="" style="width:100%; height:100%; border:none;" allow="autoplay; fullscreen"></iframe>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 1. CONFIGURACIÓN ---
+        const bgmAudio = new Audio("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3"); 
+        bgmAudio.loop = true; bgmAudio.volume = 0.3;
+        const voiceAudio = new Audio(); voiceAudio.volume = 1.0; 
+
+        // GUIONES
+        const guiones = [
+            {
+                personaje: "IST Educa",
+                texto: "¡Hola! Te damos la bienvenida a este curso. Aquí aprenderás sobre los Elementos de Protección Personal:  Su función, tipos, importancia, uso, mantención y reemplazo, en el marco de la normativa chilena.",
+                retrato: "https://i.ibb.co/V0hN6P2v/personaje.png",
+                audio: "1.wav" 
+            },
+            {
+                personaje: "IST Educa",
+                texto: "Te invitamos a reforzar el autocuidado y el cuidado colectivo en tu organización, incorporando buenas prácticas que contribuyan a la seguridad y salud en el trabajo.",
+                retrato: "https://i.ibb.co/bjdThQS9/personaje2.png",
+                audio: "2.wav",
+                isVideoTrigger: true
+            },
+            {
+                personaje: "IST Educa",
+                texto: "La legibilidad es la prioridad en este estilo minimalista.",
+                retrato: "https://i.ibb.co/TszhFzR/personaje3.png",
+                audio: null
+            },
+             {
+                personaje: "IST Educa",
+                texto: "¡Excelente! Ahora tienes una base sólida para tu contenido educativo.",
+                retrato: "https://i.ibb.co/V0hN6P2v/personaje.png",
+                audio: "https://cdn.pixabay.com/audio/2024/09/24/audio_349d793836.mp3"
+            }
+        ];
+
+        const vimeoURL = "https://player.vimeo.com/video/1133144681?h=cde74605ba&fl=pl&fe=ti";
+
+        // --- 2. LÓGICA DE INTRODUCCIÓN Y ARRANQUE ---
+        const startBtn = document.getElementById('start-button');
+        const introLayer = document.getElementById('intro-layer');
+        const startScreen = document.getElementById('start-screen');
+        const introVideo = document.getElementById('intro-video');
+        const bgVideo = document.getElementById('background-video');
+        const uiLayer = document.getElementById('ui-layer');
+
+        startBtn.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            introVideo.style.display = 'block';
+            introVideo.play();
+        });
+
+        introVideo.addEventListener('ended', () => {
+            introLayer.classList.add('fade-out');
+            uiLayer.classList.add('ui-visible');
+            bgVideo.play();
+            iniciarVisualNovel();
+        });
+
+        function iniciarVisualNovel() {
+            bgmAudio.play();
+            mostrarDialogo(0);
+        }
+
+        // --- 3. SISTEMA VISUAL NOVEL ---
+        let indiceActual = 0;
+        let isTyping = false;
+        let fullText = "";
+        let typingTimer = null;
+        
+        const ui = {
+            name: document.getElementById('character-name'),
+            textContainer: document.getElementById('dialogue-text-container'),
+            charImg: document.getElementById('character-img'),
+            videoBtn: document.getElementById('watch-video-button'),
+            modal: document.getElementById('video-modal'),
+            frame: document.getElementById('video-frame'),
+            bgm: document.getElementById('bgm-slider'),
+            voice: document.getElementById('voice-slider'),
+            dialogueBox: document.getElementById('dialogue-box')
+        };
+
+        ui.bgm.addEventListener('input', (e) => bgmAudio.volume = e.target.value);
+        ui.voice.addEventListener('input', (e) => voiceAudio.volume = e.target.value);
+
+        function typeWriter(text) {
+            ui.textContainer.innerHTML = "";
+            ui.textContainer.className = "typing-cursor";
+            fullText = text;
+            isTyping = true;
+            let i = 0;
+            clearInterval(typingTimer);
+            typingTimer = setInterval(() => {
+                ui.textContainer.textContent += text.charAt(i);
+                i++;
+                if (i >= text.length) finishTyping();
+            }, 30);
+        }
+
+        function finishTyping() {
+            clearInterval(typingTimer);
+            ui.textContainer.textContent = fullText;
+            ui.textContainer.className = "waiting-cursor";
+            isTyping = false;
+        }
+
+        function mostrarDialogo(index) {
+            if (index < guiones.length) {
+                const data = guiones[index];
+                ui.name.textContent = data.personaje;
+                
+                ui.charImg.classList.remove('animate-enter');
+                void ui.charImg.offsetWidth;
+                ui.charImg.src = data.retrato;
+                ui.charImg.classList.add('animate-enter');
+
+                voiceAudio.pause(); voiceAudio.currentTime = 0;
+                if (data.audio) { voiceAudio.src = data.audio; voiceAudio.play().catch(e=>{}); }
+                
+                typeWriter(data.texto);
+
+                if (data.isVideoTrigger) {
+                    ui.videoBtn.style.display = 'block';
+                } else {
+                    ui.videoBtn.style.display = 'none';
+                }
+            } else {
+                ui.textContainer.textContent = "Fin de la lección.";
+                ui.name.parentElement.style.display = 'none';
+                ui.charImg.parentElement.style.display = 'none';
+                ui.videoBtn.style.display = 'none';
+            }
+        }
+
+        function avanzar() {
+            if (isTyping) {
+                finishTyping();
+                return;
+            }
+            if (guiones[indiceActual].isVideoTrigger) return; 
+
+            if (indiceActual < guiones.length - 1) {
+                indiceActual++;
+                mostrarDialogo(indiceActual);
+            }
+        }
+
+        ui.dialogueBox.addEventListener('click', (e) => {
+            if (e.target.closest('#watch-video-button')) return;
+            avanzar();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.code === 'Space' || e.code === 'Enter') && !ui.modal.classList.contains('active')) {
+                avanzar();
+            }
+        });
+
+        ui.videoBtn.addEventListener('click', () => {
+            bgmAudio.pause();
+            ui.modal.classList.add('active');
+            const sep = vimeoURL.includes('?') ? '&' : '?';
+            ui.frame.src = `${vimeoURL}${sep}autoplay=1`;
+        });
+
+        document.getElementById('close-video').addEventListener('click', () => {
+            ui.modal.classList.remove('active');
+            ui.frame.src = "";
+            bgmAudio.play();
+            if (indiceActual < guiones.length - 1) {
+                indiceActual++;
+                mostrarDialogo(indiceActual);
+            }
+        });
+
+    </script>
+</body>
+</html>
